@@ -6,6 +6,7 @@ const {
     AppBar,
     Card,
     CardContent,
+    CardHeader,
     Dialog,
     DialogActions,
     DialogContent,
@@ -35,6 +36,7 @@ const theme = createMuiTheme({
 });
 const styles = theme => ({
     paper: {
+        paddingTop: theme.spacing.unit * 8,
         paddingBottom: theme.spacing.unit * 12,
         boxShadow: 'none',
         backgroundColor: 'inherit',
@@ -69,9 +71,24 @@ const styles = theme => ({
     },
     cardContent: {
         padding: theme.spacing.unit * 2,
-        paddingBottom: theme.spacing.unit * 2 + "px !important",
+        paddingBottom: theme.spacing.unit + "px !important",
+        paddingTop: theme.spacing.unit * 0.5 + "px !important",
+    },
+    cardContentSender: {
+        padding: theme.spacing.unit * 2,
+        paddingBottom: theme.spacing.unit + "px !important",
+        paddingTop: theme.spacing.unit + "px !important",
+    },
+    cardHeader: {
+        padding: theme.spacing.unit * 2,
+        paddingBottom: 0,
+        paddingTop: theme.spacing.unit,
     },
     list: {
+        paddingBottom: 'unset'
+    },
+    listSender: {
+        paddingBottom: 'unset',
         justifyContent: 'flex-end',
     },
     sendBtn: {
@@ -80,6 +97,17 @@ const styles = theme => ({
     grow: {
         flexGrow: 1,
     },
+    time: {
+        paddingTop: theme.spacing.unit * 0.25,
+        paddingLeft: theme.spacing.unit * 3,
+        fontSize: 10,
+    },
+    timeSender: {
+        textAlign: 'end',
+        paddingTop: theme.spacing.unit * 0.25,
+        paddingRight: theme.spacing.unit * 3,
+        fontSize: 10,
+    },
 });
 
 const DB_ROOT = "msgs/";
@@ -87,6 +115,10 @@ var userId = null;
 
 function getStringDate(d) {
     return d.getUTCFullYear() + "-" + (d.getUTCMonth() + 1) + "-" + d.getUTCDate();
+}
+
+function getUser() {
+    return firebase.auth().currentUser;
 }
 
 class Index extends React.Component {
@@ -138,6 +170,7 @@ class MsgThread extends React.Component {
                     msg: data.val().msg,
                     uid: data.val().uid,
                     timestamp: data.val().timestamp,
+                    displayName: data.val().displayName,
                 }],
             }));
         }
@@ -157,8 +190,8 @@ class MsgThread extends React.Component {
             <React.Fragment>
                 <Paper square className={classes.paper}>
                     <List className={classes.list}>
-                        {this.state.messages.map(({ id, msg, uid, timestamp }) => (
-                            <Msg key={id} msg={{ id, msg, uid, timestamp }} {...this.props}></Msg>
+                        {this.state.messages.map(({ id, msg, uid, timestamp, displayName }) => (
+                            <Msg key={id} msg={{ id, msg, uid, timestamp, displayName }} {...this.props}></Msg>
                         ))}
                         <div ref={this.messagesEnd} />
                     </List>
@@ -175,17 +208,32 @@ class Msg extends React.Component {
         if (msg.uid == userId) {
             isSender = true;
         }
+        let time = new Date(Number(msg.id)).toLocaleTimeString('en-US', { hour: "2-digit", minute: "2-digit" });
+        let displayName = msg.displayName;
         return (
             <React.Fragment>
-                <ListItem className={isSender ? classes.list : null}>
+                <ListItem className={isSender ? classes.listSender : classes.list}>
                     <Card className={isSender ? classes.cardSender : classes.card}>
-                        <CardContent className={classes.cardContent}>
+                        {isSender ? null : <React.Fragment>
+                            <CardHeader
+                                className={classes.cardHeader}
+                                title={displayName}
+                                titleTypographyProps={{ variant: "caption", color: "textSecondary" }}
+                            />
+                        </React.Fragment>}
+                        <CardContent className={isSender ? classes.cardContentSender : classes.cardContent}>
                             <Typography>
                                 {msg.msg}
                             </Typography>
                         </CardContent>
                     </Card>
                 </ListItem>
+                <Typography className={isSender ? classes.timeSender : classes.time}
+                    variant="caption"
+                    color="textSecondary"
+                >
+                    {time}
+                </Typography>
             </React.Fragment>
         );
     }
@@ -221,7 +269,8 @@ class BottomBar extends React.Component {
         firebase.database().ref(DB_ROOT + date + "/" + msgId).set({
             msg: this.state.message,
             uid: userId,
-            timestamp: firebase.database.ServerValue.TIMESTAMP
+            timestamp: firebase.database.ServerValue.TIMESTAMP,
+            displayName: getUser().displayName,
         }).then(() => {
             this.setState({
                 message: '',
@@ -333,7 +382,6 @@ class TopBar extends React.Component {
                                 {...this.props}
                             />
                         </React.Fragment>}
-
                     </Toolbar>
                 </AppBar>
             </React.Fragment>
