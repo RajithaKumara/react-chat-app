@@ -260,6 +260,16 @@ class BottomBar extends React.Component {
     };
 
     handleClickSend = () => {
+        let errorMsg = '';
+        if (getUser() === null) {
+            errorMsg = 'Please sign in';
+            this.setState({
+                open: true,
+                errorMsg: errorMsg,
+            });
+            return;
+        }
+
         this.setState({
             loading: true,
         });
@@ -277,7 +287,6 @@ class BottomBar extends React.Component {
                 loading: false,
             });
         }).catch((error) => {
-            let errorMsg = '';
             if (error.code === 'PERMISSION_DENIED') {
                 errorMsg = 'Permission denied to database';
             }
