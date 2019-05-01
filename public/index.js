@@ -12,6 +12,8 @@ const {
     DialogContent,
     DialogContentText,
     DialogTitle,
+    Divider,
+    Fab,
     Grid,
     Icon,
     IconButton,
@@ -22,6 +24,7 @@ const {
     ListSubheader,
     MuiThemeProvider,
     Paper,
+    Slide,
     Snackbar,
     Toolbar,
     Typography,
@@ -108,6 +111,18 @@ const styles = theme => ({
         paddingRight: theme.spacing.unit * 3,
         fontSize: 10,
     },
+    groupListAppBar: {
+        position: 'relative',
+    },
+    groupListFlex: {
+        flex: 1,
+    },
+    fabButton: {
+        position: 'absolute',
+        zIndex: 1,
+        bottom: theme.spacing.unit * -3,
+        right: theme.spacing.unit * 2,
+    },
 });
 
 const DB_ROOT = "msgs/";
@@ -122,15 +137,45 @@ function getUser() {
 }
 
 class Index extends React.Component {
+    state = {
+        groupId: null,
+        groupListOpen: true,
+    };
+
+    componentDidMount() {
+        firebase.auth().onAuthStateChanged(function (user) {
+            if (user) {
+                userId = user.uid;
+            }
+        });
+    }
+
+    setGlobalState = (obj) => {
+        this.setState(obj);
+    }
+
+    handleGroupListClose = () => {
+        this.setState({
+            groupListOpen: false,
+        });
+    }
+
+    handleGroupListOpen = () => {
+        this.setState({
+            groupListOpen: true,
+        });
+    }
+
     render() {
         const { classes } = this.props;
         return (
             <MuiThemeProvider theme={theme}>
                 <div>
                     <CssBaseline />
-                    <TopBar {...this.props}></TopBar>
-                    <MsgThread {...this.props}></MsgThread>
-                    <BottomBar {...this.props}></BottomBar>
+                    <GroupList global={this.state} setGlobalState={this.setGlobalState} onClose={this.handleGroupListClose} {...this.props}></GroupList>
+                    <TopBar onClickGroupList={this.handleGroupListOpen} {...this.props}></TopBar>
+                    <MsgThread global={this.state} {...this.props}></MsgThread>
+                    <BottomBar global={this.state} {...this.props}></BottomBar>
                 </div>
             </MuiThemeProvider>
         );
@@ -138,34 +183,30 @@ class Index extends React.Component {
 }
 
 class MsgThread extends React.Component {
-    state = {
-        messages: [],
-    };
+    state = {};
     messagesEnd = React.createRef();
 
     componentDidUpdate() {
+        if (this.props.global.groupId !== null && this.state[this.props.global.groupId] === undefined) {
+            this.setState({
+                [this.props.global.groupId]: [],
+            });
+            this.observeMsgsChanges();
+        }
         this.scrollToBottom();
     }
 
     componentDidMount() {
-        let observeMsgsChanges = () => {
-            this.observeMsgsChanges();
-        }
-        firebase.auth().onAuthStateChanged(function (user) {
-            if (user) {
-                observeMsgsChanges();
-                userId = user.uid;
-            }
-        });
         this.scrollToBottom();
     }
 
     observeMsgsChanges() {
         let d = new Date();
         let date = getStringDate(d);
+        let groupId = this.props.global.groupId;
         let handleOnAdded = (data) => {
             this.setState(state => ({
-                messages: [...state.messages, {
+                [groupId]: [...state[groupId], {
                     id: data.key,
                     msg: data.val().msg,
                     uid: data.val().uid,
@@ -174,7 +215,7 @@ class MsgThread extends React.Component {
                 }],
             }));
         }
-        var msgsRef = firebase.database().ref(DB_ROOT + date);
+        let msgsRef = firebase.database().ref('/messages/' + groupId + '/' + date);
         msgsRef.on('child_added', function (data) {
             handleOnAdded(data);
         });
@@ -185,12 +226,16 @@ class MsgThread extends React.Component {
     }
 
     render() {
-        const { classes } = this.props;
+        const { classes, global } = this.props;
+        let messages = [];
+        if (global.groupId !== null && this.state[global.groupId] !== undefined) {
+            messages = this.state[global.groupId];
+        }
         return (
             <React.Fragment>
                 <Paper square className={classes.paper}>
                     <List className={classes.list}>
-                        {this.state.messages.map(({ id, msg, uid, timestamp, displayName }) => (
+                        {messages.map(({ id, msg, uid, timestamp, displayName }) => (
                             <Msg key={id} msg={{ id, msg, uid, timestamp, displayName }} {...this.props}></Msg>
                         ))}
                         <div ref={this.messagesEnd} />
@@ -276,7 +321,8 @@ class BottomBar extends React.Component {
         let d = new Date();
         let date = getStringDate(d);
         let msgId = d.getTime();
-        firebase.database().ref(DB_ROOT + date + "/" + msgId).set({
+        let groupId = this.props.global.groupId;
+        firebase.database().ref('/messages/' + groupId + '/' + date + "/" + msgId).set({
             msg: this.state.message,
             uid: userId,
             timestamp: firebase.database.ServerValue.TIMESTAMP,
@@ -304,7 +350,7 @@ class BottomBar extends React.Component {
             <React.Fragment>
                 <AppBar className={classes.appBar} position="fixed" color="default" elevation={8}>
                     {this.state.loading && <LinearProgress />}
-                    <Toolbar className={classes.toolBar} disableGutters>
+                    <Toolbar className={classes.toolBar} disableGutters variant="dense">
                         <Grid container spacing={8} alignItems="flex-end">
                             <Grid item xs>
                                 <TextField
@@ -338,39 +384,9 @@ class BottomBar extends React.Component {
 }
 
 class TopBar extends React.Component {
-    state = {
-        open: false,
-        isLogin: true,
-    };
-
-    componentDidMount() {
-        let setState = (obj) => {
-            this.setState(obj);
-        }
-        firebase.auth().onAuthStateChanged(function (user) {
-            if (user) {
-                setState({
-                    isLogin: true,
-                });
-            } else {
-                setState({
-                    isLogin: false,
-                });
-            }
-        });
+    handleGroupListOpen = () => {
+        this.props.onClickGroupList();
     }
-
-    handleClickOpen = () => {
-        this.setState({
-            open: true,
-        });
-    };
-
-    handleClose = () => {
-        this.setState({
-            open: false,
-        });
-    };
 
     render() {
         const { classes } = this.props;
@@ -378,19 +394,12 @@ class TopBar extends React.Component {
             <React.Fragment>
                 <AppBar position="fixed">
                     <Toolbar>
+                        <IconButton color="inherit" aria-label="List" onClick={this.handleGroupListOpen}>
+                            <Icon>list</Icon>
+                        </IconButton>
                         <Typography variant="h6" color="inherit" className={classes.grow}>
                             React Chat
                         </Typography>
-                        {this.state.isLogin ? null : <React.Fragment>
-                            <Button color="inherit" onClick={this.handleClickOpen}>
-                                Login
-                            </Button>
-                            <AuthDialog
-                                open={this.state.open}
-                                onClose={this.handleClose}
-                                {...this.props}
-                            />
-                        </React.Fragment>}
                     </Toolbar>
                 </AppBar>
             </React.Fragment>
@@ -399,21 +408,13 @@ class TopBar extends React.Component {
 }
 
 class AuthDialog extends React.Component {
-    handleClose = () => {
-        this.props.onClose();
-    };
-
     componentDidUpdate() {
         if (this.ui === undefined) {
             this.ui = new firebaseui.auth.AuthUI(firebase.auth());
         }
-        let handleAuthDialogClose = () => {
-            this.handleClose();
-        }
         let uiConfig = {
             callbacks: {
                 signInSuccessWithAuthResult: function (authResult, redirectUrl) {
-                    handleAuthDialogClose();
                     return false;
                 },
                 uiShown: function () {
@@ -481,6 +482,214 @@ class Notification extends React.Component {
                     </IconButton>,
                 ]}
             />
+        );
+    }
+}
+
+class GroupList extends React.Component {
+    state = {
+        loginDialogOpen: false,
+        isLogin: true,
+        newGroupDialogOpen: false,
+        groups: [],
+    };
+
+    constructor(props) {
+        super(props);
+        let setState = (obj) => {
+            this.setState(obj);
+        }
+        let observeGroupsChanges = () => {
+            this.observeGroupsChanges();
+        }
+        firebase.auth().onAuthStateChanged(function (user) {
+            if (user) {
+                setState({
+                    isLogin: true,
+                });
+                observeGroupsChanges();
+            } else {
+                setState({
+                    isLogin: false,
+                });
+            }
+        });
+    }
+
+    handleLoginDialogOpen = () => {
+        this.setState({
+            loginDialogOpen: true,
+        });
+    };
+
+    handleLoginDialogClose = () => {
+        this.setState({
+            loginDialogOpen: false,
+        });
+    };
+
+    handleClose = () => {
+        this.props.onClose();
+    };
+
+    handleNewGroupDialogClose = () => {
+        this.setState({ newGroupDialogOpen: false });
+    }
+
+    handleNewGroupDialogOpen = () => {
+        this.setState({ newGroupDialogOpen: true });
+    }
+
+    transition(props) {
+        return <Slide direction="up" {...props} />;
+    }
+
+    observeGroupsChanges() {
+        let uid = getUser().uid;
+        let handleOnAdded = (data) => {
+            this.setState(state => ({
+                groups: [...state.groups, {
+                    id: data.key,
+                    general: data.val().general,
+                }],
+            }));
+        }
+        let groupsRef = firebase.database().ref('/users/' + uid + "/groups");
+        groupsRef.on('child_added', function (data) {
+            handleOnAdded(data);
+        });
+    }
+
+    handleClickGroup = id => () => {
+        this.props.setGlobalState({ groupId: id });
+        this.handleClose();
+    }
+
+    render() {
+        const { classes, global } = this.props;
+        return (
+            <div>
+                <Dialog
+                    fullScreen
+                    open={global.groupListOpen}
+                    onClose={this.handleClose}
+                    TransitionComponent={this.transition}
+                >
+                    <AppBar className={classes.groupListAppBar}>
+                        <Toolbar>
+                            <Typography variant="h6" color="inherit" className={classes.groupListFlex}>
+                                Chats
+                            </Typography>
+                            {this.state.isLogin ? null : <React.Fragment>
+                                <Button color="inherit" onClick={this.handleLoginDialogOpen}>
+                                    Login
+                                </Button>
+                                <AuthDialog
+                                    open={this.state.loginDialogOpen}
+                                    onClose={this.handleLoginDialogClose}
+                                    {...this.props}
+                                />
+                            </React.Fragment>}
+                            {!this.state.isLogin ? null : <React.Fragment>
+                                <Fab color="secondary" onClick={this.handleNewGroupDialogOpen} aria-label="Add" className={classes.fabButton}>
+                                    <Icon>add</Icon>
+                                </Fab>
+                            </React.Fragment>}
+                            <NewGroupDialog
+                                open={this.state.newGroupDialogOpen}
+                                onClose={this.handleNewGroupDialogClose}
+                            />
+                        </Toolbar>
+                    </AppBar>
+                    <List>
+                        {this.state.groups.map(({ id, general }) => (
+                            <ListItem button key={id} onClick={this.handleClickGroup(id)}>
+                                <ListItemText primary={general.name} />
+                            </ListItem>
+                        ))}
+                    </List>
+                </Dialog>
+            </div>
+        );
+    }
+}
+
+class NewGroupDialog extends React.Component {
+    state = {
+        groupName: '',
+        open: false,
+        errorMsg: '',
+    };
+
+    handleClose = () => {
+        this.props.onClose();
+    };
+
+    handleNotificationClose = () => {
+        this.setState({
+            open: false,
+        });
+    }
+
+    handleChange = () => event => {
+        this.setState({
+            groupName: event.target.value,
+        });
+    };
+
+    createNewGroup = () => {
+        let groupId = firebase.database().ref().child('groups').push().key;
+        let uid = getUser().uid;
+        let updates = {};
+        updates['/groups/' + groupId + '/users/' + uid] = true;
+        updates['/users/' + uid + '/groups/' + groupId + '/general/name'] = this.state.groupName;
+        firebase.database().ref().update(updates).then(() => {
+            this.setState({
+                groupName: '',
+            });
+            this.handleClose();
+        }).catch((error) => {
+            this.setState({
+                open: true,
+                errorMsg: "Error occured while creating new group"
+            });
+        });
+    }
+
+    render() {
+        return (
+            <React.Fragment>
+                <Dialog
+                    open={this.props.open}
+                    onClose={this.handleClose}
+                    aria-labelledby="form-dialog-title"
+                >
+                    <DialogTitle id="form-dialog-title">New Group</DialogTitle>
+                    <DialogContent>
+                        <TextField
+                            autoFocus
+                            margin="dense"
+                            id="name"
+                            label="Group name"
+                            fullWidth
+                            onChange={this.handleChange()}
+                        />
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={this.handleClose} color="primary">
+                            Cancel
+                        </Button>
+                        <Button onClick={this.createNewGroup} color="primary">
+                            Create
+                        </Button>
+                    </DialogActions>
+                </Dialog>
+                <Notification
+                    message={this.state.errorMsg}
+                    open={this.state.open}
+                    onClose={this.handleNotificationClose}
+                />
+            </React.Fragment>
         );
     }
 }
