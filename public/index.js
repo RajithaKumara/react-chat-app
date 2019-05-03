@@ -44,10 +44,16 @@ const theme = createMuiTheme({
 });
 const styles = theme => ({
     paper: {
-        paddingTop: theme.spacing.unit * 8,
         paddingBottom: theme.spacing.unit * 12,
         boxShadow: 'none',
         backgroundColor: 'inherit',
+        paddingTop: 56,
+        "@media (min-width:0px) and (orientation: landscape)": {
+            paddingTop: 48,
+        },
+        "@media (min-width:600px)": {
+            paddingTop: 64,
+        },
     },
     signinPaper: {
         ...theme.mixins.gutters(),
@@ -56,6 +62,13 @@ const styles = theme => ({
     },
     subHeader: {
         backgroundColor: theme.palette.background.paper,
+        top: 56,
+        "@media (min-width:0px) and (orientation: landscape)": {
+            top: 48,
+        },
+        "@media (min-width:600px)": {
+            top: 64,
+        },
     },
     appBar: {
         top: 'auto',
@@ -91,6 +104,9 @@ const styles = theme => ({
         padding: theme.spacing.unit * 2,
         paddingBottom: 0,
         paddingTop: theme.spacing.unit,
+    },
+    msgThreadList: {
+        paddingBottom: 'unset',
     },
     list: {
         paddingBottom: 'unset'
@@ -131,10 +147,6 @@ const styles = theme => ({
 });
 
 var userId = null;
-
-function getStringDate(d) {
-    return d.getUTCFullYear() + "-" + (d.getUTCMonth() + 1) + "-" + d.getUTCDate();
-}
 
 function getUser() {
     return firebase.auth().currentUser;
@@ -199,11 +211,13 @@ class Index extends React.Component {
 class MsgThread extends React.Component {
     state = {};
     messagesEnd = React.createRef();
+    stickySuffix = '_sticky';
 
     componentDidUpdate() {
         if (this.props.global.groupId !== null && this.state[this.props.global.groupId] === undefined) {
             this.setState({
                 [this.props.global.groupId]: [],
+                [this.props.global.groupId + this.stickySuffix]: [],
             });
             this.observeMsgsChanges();
         }
@@ -215,10 +229,31 @@ class MsgThread extends React.Component {
     }
 
     observeMsgsChanges() {
-        let d = new Date();
-        let date = getStringDate(d);
         let groupId = this.props.global.groupId;
         let handleOnAdded = (data) => {
+            let msgId = data.key;
+            let options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            let d = new Date(Number(msgId));
+            let date = d.toLocaleDateString('en-DE', options);
+            let sticky = this.state[groupId + this.stickySuffix];
+            if (sticky.indexOf(date) === -1) {
+                let stickyDate = date;
+                let today = new Date();
+                let yesterday = new Date(new Date().setDate(today.getDate() - 1))
+                if (d.toDateString() === today.toDateString()) {
+                    stickyDate = 'Today';
+                } else if (d.toDateString() === yesterday.toDateString()) {
+                    stickyDate = 'Yesterday';
+                }
+                this.setState(state => ({
+                    [groupId + this.stickySuffix]: [...state[groupId + this.stickySuffix], date],
+                    [groupId]: [...state[groupId], {
+                        id: date,
+                        isSticky: true,
+                        sticky: stickyDate,
+                    }],
+                }));
+            }
             this.setState(state => ({
                 [groupId]: [...state[groupId], {
                     id: data.key,
@@ -229,7 +264,7 @@ class MsgThread extends React.Component {
                 }],
             }));
         }
-        let msgsRef = firebase.database().ref('/messages/' + groupId + '/' + date);
+        let msgsRef = firebase.database().ref('/messages/' + groupId).limitToLast(100);
         msgsRef.on('child_added', function (data) {
             handleOnAdded(data);
         });
@@ -248,9 +283,12 @@ class MsgThread extends React.Component {
         return (
             <React.Fragment>
                 <Paper square className={classes.paper}>
-                    <List className={classes.list}>
-                        {messages.map(({ id, msg, uid, timestamp, displayName }) => (
-                            <Msg key={id} msg={{ id, msg, uid, timestamp, displayName }} {...this.props}></Msg>
+                    <List className={classes.msgThreadList}>
+                        {messages.map((msg) => (
+                            <React.Fragment key={msg.id}>
+                                {msg.isSticky ? <ListSubheader className={classes.subHeader}>{msg.sticky}</ListSubheader> : null}
+                                {msg.isSticky === undefined ? <Msg msg={msg} {...this.props}></Msg> : null}
+                            </React.Fragment>
                         ))}
                         <div ref={this.messagesEnd} />
                     </List>
@@ -333,10 +371,9 @@ class BottomBar extends React.Component {
             loading: true,
         });
         let d = new Date();
-        let date = getStringDate(d);
         let msgId = d.getTime();
         let groupId = this.props.global.groupId;
-        firebase.database().ref('/messages/' + groupId + '/' + date + "/" + msgId).set({
+        firebase.database().ref('/messages/' + groupId + '/' + msgId).set({
             msg: this.state.message,
             uid: userId,
             timestamp: firebase.database.ServerValue.TIMESTAMP,
