@@ -1,6 +1,33 @@
 {
   "rules": {
-    ".read": "auth != null",
-    ".write": "auth != null"
+    "users": {
+      "$uid": {
+        ".read": "$uid === auth.uid",
+        ".write": "$uid === auth.uid",
+        "groups": {
+          "$groupId": {
+            ".write": "auth != null && root.child('groups').child($groupId).child('users').child(auth.uid).val() == true"
+          }
+        }
+      }
+    },
+    "groups": {
+      "$groupId": {
+        ".read": "auth != null && data.child('users').hasChild(auth.uid)",
+        ".write": "auth != null && (!data.exists() ? newData.child('users').hasChild(auth.uid) : data.child('users').hasChild(auth.uid))"
+      }
+    },
+    "messages": {
+      "$groupId": {
+        ".read": "auth != null && root.child('groups').child($groupId).child('users').child(auth.uid).val() == true",
+        ".write": "auth != null && root.child('groups').child($groupId).child('users').child(auth.uid).val() == true"
+      }
+    },
+    "profiles": {
+      ".read": "auth != null",
+      "$uid": {
+        ".write": "$uid === auth.uid"
+      }
+    }
   }
 }
