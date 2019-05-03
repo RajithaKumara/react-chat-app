@@ -9,12 +9,12 @@ const {
     CardContent,
     CardHeader,
     Checkbox,
+    Chip,
     Dialog,
     DialogActions,
     DialogContent,
     DialogContentText,
     DialogTitle,
-    Divider,
     Fab,
     Grid,
     Icon,
@@ -41,12 +41,34 @@ const theme = createMuiTheme({
     typography: {
         useNextVariants: true,
     },
+    // mixins: {
+    //     toolbarPaddingTop: {
+    //         paddingTop: 56,
+    //         "@media (min-width:0px) and (orientation: landscape)": {
+    //             paddingTop: 48,
+    //         },
+    //         "@media (min-width:600px)": {
+    //             paddingTop: 64,
+    //         },
+    //     },
+    //     toolbarTop: {
+    //         top: 56,
+    //         "@media (min-width:0px) and (orientation: landscape)": {
+    //             top: 48,
+    //         },
+    //         "@media (min-width:600px)": {
+    //             top: 64,
+    //         },
+    //     }
+    // }
 });
 const styles = theme => ({
     paper: {
         paddingBottom: theme.spacing.unit * 12,
         boxShadow: 'none',
         backgroundColor: 'inherit',
+    },
+    topPadding: {
         paddingTop: 56,
         "@media (min-width:0px) and (orientation: landscape)": {
             paddingTop: 48,
@@ -61,7 +83,8 @@ const styles = theme => ({
         paddingBottom: theme.spacing.unit * 2,
     },
     subHeader: {
-        backgroundColor: theme.palette.background.paper,
+        backgroundColor: 'inherit',
+        textAlign: 'center',
         top: 56,
         "@media (min-width:0px) and (orientation: landscape)": {
             top: 48,
@@ -69,6 +92,9 @@ const styles = theme => ({
         "@media (min-width:600px)": {
             top: 64,
         },
+    },
+    subHeaderChip: {
+        minWidth: 200,
     },
     appBar: {
         top: 'auto',
@@ -139,23 +165,18 @@ const styles = theme => ({
         flex: 1,
     },
     fabButton: {
-        position: 'absolute',
+        position: 'fixed',
         zIndex: 1,
         bottom: theme.spacing.unit * 3,
         right: theme.spacing.unit * 3,
     },
 });
 
-var userId = null;
-
-function getUser() {
-    return firebase.auth().currentUser;
-}
-
 class Index extends React.Component {
     state = {
         groupId: null,
         groupName: null,
+        groupIcon: null,
         groupListOpen: true,
         userId: null,
         userDisplayName: null,
@@ -167,7 +188,6 @@ class Index extends React.Component {
         };
         firebase.auth().onAuthStateChanged(function (user) {
             if (user) {
-                userId = user.uid;
                 setState({
                     userId: user.uid,
                     userDisplayName: user.displayName,
@@ -276,17 +296,20 @@ class MsgThread extends React.Component {
 
     render() {
         const { classes, global } = this.props;
+        const classPaper = classes.paper + ' ' + classes.topPadding;
         let messages = [];
         if (global.groupId !== null && this.state[global.groupId] !== undefined) {
             messages = this.state[global.groupId];
         }
         return (
             <React.Fragment>
-                <Paper square className={classes.paper}>
+                <Paper square className={classPaper}>
                     <List className={classes.msgThreadList}>
                         {messages.map((msg) => (
                             <React.Fragment key={msg.id}>
-                                {msg.isSticky ? <ListSubheader className={classes.subHeader}>{msg.sticky}</ListSubheader> : null}
+                                {msg.isSticky ? <ListSubheader className={classes.subHeader}>
+                                    <Chip className={classes.subHeaderChip} label={msg.sticky} />
+                                </ListSubheader> : null}
                                 {msg.isSticky === undefined ? <Msg msg={msg} {...this.props}></Msg> : null}
                             </React.Fragment>
                         ))}
@@ -302,7 +325,7 @@ class Msg extends React.Component {
     render() {
         const { classes, msg } = this.props;
         let isSender = false;
-        if (msg.uid == userId) {
+        if (msg.uid == this.props.global.userId) {
             isSender = true;
         }
         let time = new Date(Number(msg.id)).toLocaleTimeString('en-US', { hour: "2-digit", minute: "2-digit" });
@@ -341,7 +364,7 @@ class BottomBar extends React.Component {
         message: '',
         loading: false,
         open: false,
-        errorMsg: '',
+        errorMsg: 'Error occured while sending message',
     };
 
     handleChange = () => event => {
@@ -358,7 +381,7 @@ class BottomBar extends React.Component {
 
     handleClickSend = () => {
         let errorMsg = '';
-        if (getUser() === null) {
+        if (this.props.global.userId === null) {
             errorMsg = 'Please sign in';
             this.setState({
                 open: true,
@@ -375,9 +398,9 @@ class BottomBar extends React.Component {
         let groupId = this.props.global.groupId;
         firebase.database().ref('/messages/' + groupId + '/' + msgId).set({
             msg: this.state.message,
-            uid: userId,
+            uid: this.props.global.userId,
             timestamp: firebase.database.ServerValue.TIMESTAMP,
-            displayName: getUser().displayName,
+            displayName: this.props.global.userDisplayName,
         }).then(() => {
             this.setState({
                 message: '',
@@ -515,13 +538,21 @@ class TopBar extends React.Component {
 }
 
 class AuthDialog extends React.Component {
+    handleClose = () => {
+        this.props.onAuthDialogClose();
+    };
+
     componentDidUpdate() {
         if (this.ui === undefined) {
             this.ui = new firebaseui.auth.AuthUI(firebase.auth());
         }
+        let handleAuthDialogClose = () => {
+            this.handleClose();
+        }
         let uiConfig = {
             callbacks: {
                 signInSuccessWithAuthResult: function (authResult, redirectUrl) {
+                    handleAuthDialogClose();
                     return false;
                 },
                 uiShown: function () {
@@ -548,7 +579,13 @@ class AuthDialog extends React.Component {
     render() {
         const { classes, ...other } = this.props;
         return (
-            <Dialog onClose={this.handleClose} aria-labelledby="auth-dialog" {...other}>
+            <Dialog
+                disableBackdropClick
+                disableEscapeKeyDown
+                onClose={this.handleClose}
+                aria-labelledby="auth-dialog"
+                {...other}
+            >
                 <Paper className={classes.signinPaper}>
                     <div id="firebaseui-auth-container"></div>
                     <div id="loader">Loading...</div>
@@ -596,32 +633,19 @@ class Notification extends React.Component {
 class GroupList extends React.Component {
     state = {
         loginDialogOpen: false,
-        isLogin: true,
+        isLogin: false,
         newGroupDialogOpen: false,
         groups: [],
         profileDialogOpen: false,
     };
 
-    constructor(props) {
-        super(props);
-        let setState = (obj) => {
-            this.setState(obj);
-        }
-        let observeGroupsChanges = () => {
+    componentDidUpdate() {
+        if (this.props.global.userId !== null && !this.state.isLogin) {
+            this.setState({
+                isLogin: true,
+            });
             this.observeGroupsChanges();
         }
-        firebase.auth().onAuthStateChanged(function (user) {
-            if (user) {
-                setState({
-                    isLogin: true,
-                });
-                observeGroupsChanges();
-            } else {
-                setState({
-                    isLogin: false,
-                });
-            }
-        });
     }
 
     handleLoginDialogOpen = () => {
@@ -653,12 +677,13 @@ class GroupList extends React.Component {
     }
 
     observeGroupsChanges() {
-        let uid = getUser().uid;
+        let uid = this.props.global.userId;
         let handleOnAdded = (data) => {
             this.setState(state => ({
                 groups: [...state.groups, {
                     id: data.key,
-                    name: data.val(),
+                    name: data.val().name,
+                    icon: data.val().icon,
                 }],
             }));
         }
@@ -668,10 +693,11 @@ class GroupList extends React.Component {
         });
     }
 
-    handleClickGroup = (id, name) => () => {
+    handleClickGroup = (id, name, icon) => () => {
         this.props.setGlobalState({
             groupId: id,
             groupName: name,
+            groupIcon: icon,
         });
         this.handleClose();
     }
@@ -694,7 +720,7 @@ class GroupList extends React.Component {
                     onClose={this.handleClose}
                     TransitionComponent={this.transition}
                 >
-                    <AppBar className={classes.groupListAppBar}>
+                    <AppBar position="fixed">
                         <Toolbar>
                             <Typography variant="h6" color="inherit" className={classes.groupListFlex}>
                                 Chats
@@ -705,7 +731,7 @@ class GroupList extends React.Component {
                                 </Button>
                                 <AuthDialog
                                     open={this.state.loginDialogOpen}
-                                    onClose={this.handleLoginDialogClose}
+                                    onAuthDialogClose={this.handleLoginDialogClose}
                                     {...this.props}
                                 />
                             </React.Fragment>}
@@ -718,16 +744,21 @@ class GroupList extends React.Component {
                                 open={this.state.profileDialogOpen}
                                 onClose={this.handleProfileDialogClose}
                                 global={this.props.global}
+                                setGlobalState={this.props.setGlobalState}
                             />
                             <NewGroupDialog
                                 open={this.state.newGroupDialogOpen}
                                 onClose={this.handleNewGroupDialogClose}
+                                global={this.props.global}
                             />
                         </Toolbar>
                     </AppBar>
-                    <List>
-                        {this.state.groups.map(({ id, name }) => (
-                            <ListItem button key={id} onClick={this.handleClickGroup(id, name)}>
+                    <List className={classes.topPadding}>
+                        {this.state.groups.map(({ id, name, icon }) => (
+                            <ListItem button key={id} onClick={this.handleClickGroup(id, name, icon)}>
+                                <ListItemAvatar>
+                                    <Avatar>{icon}</Avatar>
+                                </ListItemAvatar>
                                 <ListItemText primary={name} />
                             </ListItem>
                         ))}
@@ -746,6 +777,7 @@ class GroupList extends React.Component {
 class NewGroupDialog extends React.Component {
     state = {
         groupName: '',
+        icon: '',
         open: false,
         errorMsg: '',
     };
@@ -760,22 +792,24 @@ class NewGroupDialog extends React.Component {
         });
     }
 
-    handleChange = () => event => {
+    handleChange = (key) => event => {
         this.setState({
-            groupName: event.target.value,
+            [key]: event.target.value,
         });
     };
 
     createNewGroup = () => {
         let groupId = firebase.database().ref().child('groups').push().key;
-        let uid = getUser().uid;
+        let uid = this.props.global.userId;
         let updates = {};
         updates['/groups/' + groupId + '/users/' + uid] = true;
         updates['/groups/' + groupId + '/general/name'] = this.state.groupName;
-        updates['/users/' + uid + '/groups/' + groupId] = this.state.groupName;
+        updates['/groups/' + groupId + '/general/icon'] = this.state.icon;
+        updates['/users/' + uid + '/groups/' + groupId] = { name: this.state.groupName, icon: this.state.icon };
         firebase.database().ref().update(updates).then(() => {
             this.setState({
                 groupName: '',
+                icon: '',
             });
             this.handleClose();
         }).catch((error) => {
@@ -802,7 +836,15 @@ class NewGroupDialog extends React.Component {
                             id="name"
                             label="Group name"
                             fullWidth
-                            onChange={this.handleChange()}
+                            onChange={this.handleChange('groupName')}
+                        />
+                        <TextField
+                            margin="dense"
+                            id="icon"
+                            label="Profile icon letters"
+                            fullWidth
+                            onChange={this.handleChange('icon')}
+                            value={this.state.icon}
                         />
                     </DialogContent>
                     <DialogActions>
@@ -830,24 +872,29 @@ class AddNewMemberDialog extends React.Component {
         checked: [],
         open: false,
         errorMsg: '',
+        subscribed: false,
     };
 
-    constructor(props) {
-        super(props);
-        let handleOnAdded = (data) => {
-            this.setState(state => ({
-                profiles: [...state.profiles, {
-                    id: data.key,
-                    displayName: data.val().displayName,
-                    icon: data.val().icon,
-                    status: data.val().status,
-                }],
-            }));
+    componentDidUpdate() {
+        if (this.props.global.userId != null && !this.state.subscribed) {
+            this.setState({
+                subscribed: true,
+            });
+            let handleOnAdded = (data) => {
+                this.setState(state => ({
+                    profiles: [...state.profiles, {
+                        id: data.key,
+                        displayName: data.val().displayName,
+                        icon: data.val().icon,
+                        status: data.val().status,
+                    }],
+                }));
+            }
+            let profilesRef = firebase.database().ref('/profiles');
+            profilesRef.on('child_added', function (data) {
+                handleOnAdded(data);
+            });
         }
-        let profilesRef = firebase.database().ref('/profiles');
-        profilesRef.on('child_added', function (data) {
-            handleOnAdded(data);
-        });
     }
 
     handleClose = () => {
@@ -877,10 +924,11 @@ class AddNewMemberDialog extends React.Component {
     addNewMembers = () => {
         let groupId = this.props.global.groupId;
         let groupName = this.props.global.groupName;
+        let groupIcon = this.props.global.groupIcon;
         let updates = {};
         this.state.checked.forEach(uid => {
             updates['/groups/' + groupId + '/users/' + uid] = true;
-            updates['/users/' + uid + '/groups/' + groupId] = groupName;
+            updates['/users/' + uid + '/groups/' + groupId] = { name: groupName, icon: groupIcon };
         });
         firebase.database().ref().update(updates).then(() => {
             this.setState({
@@ -962,12 +1010,20 @@ class ProfileDialog extends React.Component {
             let setState = (obj) => {
                 this.setState(obj);
             }
+            let setDisplayName = (displayName) => {
+                this.props.setGlobalState({
+                    userDisplayName: displayName,
+                })
+            }
             let uid = this.props.global.userId;
             let profileRef = firebase.database().ref('/profiles/' + uid);
             profileRef.on('child_added', function (data) {
                 setState({
                     [data.key]: data.val(),
-                })
+                });
+                if (data.key === 'displayName') {
+                    setDisplayName(data.val());
+                }
             });
         }
     }
