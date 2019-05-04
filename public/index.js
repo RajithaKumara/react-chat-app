@@ -1,6 +1,5 @@
 const {
     Button,
-    colors,
     createMuiTheme,
     CssBaseline,
     AppBar,
@@ -13,7 +12,6 @@ const {
     Dialog,
     DialogActions,
     DialogContent,
-    DialogContentText,
     DialogTitle,
     Fab,
     Grid,
@@ -41,26 +39,6 @@ const theme = createMuiTheme({
     typography: {
         useNextVariants: true,
     },
-    // mixins: {
-    //     toolbarPaddingTop: {
-    //         paddingTop: 56,
-    //         "@media (min-width:0px) and (orientation: landscape)": {
-    //             paddingTop: 48,
-    //         },
-    //         "@media (min-width:600px)": {
-    //             paddingTop: 64,
-    //         },
-    //     },
-    //     toolbarTop: {
-    //         top: 56,
-    //         "@media (min-width:0px) and (orientation: landscape)": {
-    //             top: 48,
-    //         },
-    //         "@media (min-width:600px)": {
-    //             top: 64,
-    //         },
-    //     }
-    // }
 });
 const styles = theme => ({
     paper: {
