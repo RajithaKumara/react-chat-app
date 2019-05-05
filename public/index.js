@@ -229,6 +229,8 @@ class MsgThread extends React.Component {
     observeMsgsChanges() {
         let groupId = this.props.global.groupId;
         let handleOnAdded = (data) => {
+            this.handleNotification(data);
+
             let msgId = data.key;
             let options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
             let d = new Date(Number(msgId));
@@ -267,6 +269,12 @@ class MsgThread extends React.Component {
             handleOnAdded(data);
         });
     }
+
+    handleNotification = (data) => {
+        if (data.val().uid !== this.props.global.userId) {
+            showNotification(data.val().displayName, data.val().msg);
+        }
+    };
 
     scrollToBottom() {
         this.messagesEnd.current.scrollIntoView({ behavior: 'smooth' })
