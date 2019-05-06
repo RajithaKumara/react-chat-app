@@ -29,6 +29,7 @@ const {
     Paper,
     Slide,
     Snackbar,
+    SvgIcon,
     Toolbar,
     Typography,
     TextField,
@@ -45,15 +46,6 @@ const styles = theme => ({
         paddingBottom: theme.spacing.unit * 12,
         boxShadow: 'none',
         backgroundColor: 'inherit',
-    },
-    topPadding: {
-        paddingTop: 56,
-        "@media (min-width:0px) and (orientation: landscape)": {
-            paddingTop: 48,
-        },
-        "@media (min-width:600px)": {
-            paddingTop: 64,
-        },
     },
     signinPaper: {
         ...theme.mixins.gutters(),
@@ -147,6 +139,38 @@ const styles = theme => ({
         zIndex: 1,
         bottom: theme.spacing.unit * 3,
         right: theme.spacing.unit * 3,
+    },
+    paperGroupList: {
+        ...theme.mixins.gutters(),
+        paddingTop: theme.spacing.unit * 2,
+        paddingBottom: theme.spacing.unit * 2,
+        boxShadow: 'none',
+        backgroundColor: 'inherit',
+        minHeight: '100vmin',
+    },
+    paperBackgroundIcon: {
+        ...theme.mixins.gutters(),
+        paddingTop: theme.spacing.unit * 2,
+        paddingBottom: theme.spacing.unit * 2,
+        boxShadow: 'none',
+        backgroundColor: 'inherit',
+    },
+    backgroundIcon: {
+        fontSize: '50vmin',
+        color: '#ecefff80',
+        margin: '10vmin 10vmin 0 10vmin',
+    },
+    centerTextAlign: {
+        textAlign: 'center',
+    },
+    topPadding: {
+        paddingTop: 56,
+        "@media (min-width:0px) and (orientation: landscape)": {
+            paddingTop: 48,
+        },
+        "@media (min-width:600px)": {
+            paddingTop: 64,
+        },
     },
 });
 
@@ -739,16 +763,21 @@ class GroupList extends React.Component {
                             />
                         </Toolbar>
                     </AppBar>
-                    <List className={classes.topPadding}>
-                        {this.state.groups.map(({ id, name, icon }) => (
-                            <ListItem button key={id} onClick={this.handleClickGroup(id, name, icon)}>
-                                <ListItemAvatar>
-                                    <Avatar>{icon}</Avatar>
-                                </ListItemAvatar>
-                                <ListItemText primary={name} />
-                            </ListItem>
-                        ))}
-                    </List>
+                    <Paper className={classes.paperGroupList + ' ' + classes.topPadding}>
+                        {this.state.groups.length === 0 ? <BackgroundIcon classes={classes} /> : <React.Fragment>
+                            <List>
+                                {this.state.groups.map(({ id, name, icon }) => (
+                                    <ListItem button key={id} onClick={this.handleClickGroup(id, name, icon)}>
+                                        <ListItemAvatar>
+                                            <Avatar>{icon}</Avatar>
+                                        </ListItemAvatar>
+                                        <ListItemText primary={name} />
+                                    </ListItem>
+                                ))}
+                            </List>
+                        </React.Fragment>
+                        }
+                    </Paper>
                     {!this.state.isLogin ? null : <React.Fragment>
                         <Fab onClick={this.handleNewGroupDialogOpen} aria-label="Add" className={classes.fabButton}>
                             <Icon>add</Icon>
@@ -1097,4 +1126,15 @@ class ProfileDialog extends React.Component {
             </React.Fragment>
         );
     }
+}
+
+function BackgroundIcon(props) {
+    const { classes } = props;
+    return (
+        <Paper className={classes.paperBackgroundIcon + ' ' + classes.centerTextAlign}>
+            <SvgIcon className={classes.backgroundIcon}>
+                <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z" />
+            </SvgIcon>
+        </Paper>
+    );
 }
