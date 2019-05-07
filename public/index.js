@@ -261,20 +261,12 @@ class MsgThread extends React.Component {
             let date = d.toLocaleDateString('en-DE', options);
             let sticky = this.state[groupId + this.stickySuffix];
             if (sticky.indexOf(date) === -1) {
-                let stickyDate = date;
-                let today = new Date();
-                let yesterday = new Date(new Date().setDate(today.getDate() - 1))
-                if (d.toDateString() === today.toDateString()) {
-                    stickyDate = 'Today';
-                } else if (d.toDateString() === yesterday.toDateString()) {
-                    stickyDate = 'Yesterday';
-                }
                 this.setState(state => ({
                     [groupId + this.stickySuffix]: [...state[groupId + this.stickySuffix], date],
                     [groupId]: [...state[groupId], {
-                        id: date,
+                        id: d.toDateString(),
                         isSticky: true,
-                        sticky: stickyDate,
+                        sticky: date,
                     }],
                 }));
             }
@@ -317,10 +309,7 @@ class MsgThread extends React.Component {
                     <List className={classes.msgThreadList}>
                         {messages.map((msg) => (
                             <React.Fragment key={msg.id}>
-                                {msg.isSticky ? <ListSubheader className={classes.subHeader}>
-                                    <Chip className={classes.subHeaderChip} label={msg.sticky} />
-                                </ListSubheader> : null}
-                                {msg.isSticky === undefined ? <Msg msg={msg} {...this.props}></Msg> : null}
+                                {msg.isSticky ? <Sticky sticky={msg} classes={classes} /> : <Msg msg={msg} {...this.props} />}
                             </React.Fragment>
                         ))}
                         <div ref={this.messagesEnd} />
@@ -364,6 +353,28 @@ class Msg extends React.Component {
                 >
                     {time}
                 </Typography>
+            </React.Fragment>
+        );
+    }
+}
+
+class Sticky extends React.Component {
+    render() {
+        const { classes, sticky } = this.props;
+        let date = new Date(sticky.id);
+        let stickyDate = sticky.sticky;
+        let today = new Date();
+        let yesterday = new Date(new Date().setDate(today.getDate() - 1))
+        if (date.toDateString() === today.toDateString()) {
+            stickyDate = 'Today';
+        } else if (date.toDateString() === yesterday.toDateString()) {
+            stickyDate = 'Yesterday';
+        }
+        return (
+            <React.Fragment>
+                <ListSubheader className={classes.subHeader}>
+                    <Chip className={classes.subHeaderChip} label={stickyDate} />
+                </ListSubheader>
             </React.Fragment>
         );
     }
