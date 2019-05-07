@@ -32,6 +32,12 @@
             "sizes": "192x192",
             "type": "image/png",
             "density": "4.0"
+        },
+        {
+            "src": "/images/android/ic_launcher.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "density": "10.6"
         }
     ],
     "lang": "en-US",
