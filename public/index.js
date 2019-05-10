@@ -5,6 +5,7 @@ const {
     AppBar,
     Avatar,
     Card,
+    CardActionArea,
     CardContent,
     CardHeader,
     Checkbox,
@@ -163,6 +164,12 @@ const styles = theme => ({
     centerTextAlign: {
         textAlign: 'center',
     },
+    msgTopBarFlex: {
+        flex: 1,
+    },
+    msgFocusVisible: {
+        color: theme.palette.background.paper,
+    },
     topPadding: {
         paddingTop: 56,
         "@media (min-width:0px) and (orientation: landscape)": {
@@ -215,17 +222,79 @@ class Index extends React.Component {
     }
 
     render() {
-        const { classes } = this.props;
         return (
             <MuiThemeProvider theme={theme}>
                 <div>
                     <CssBaseline />
                     <GroupList global={this.state} setGlobalState={this.setGlobalState} onClose={this.handleGroupListClose} {...this.props}></GroupList>
-                    <TopBar global={this.state} onClickGroupList={this.handleGroupListOpen} {...this.props}></TopBar>
-                    <MsgThread global={this.state} {...this.props}></MsgThread>
-                    <BottomBar global={this.state} {...this.props}></BottomBar>
+                    <MsgWindow
+                        {...this.props}
+                        global={this.state}
+                        onClickGroupList={this.handleGroupListOpen}
+                    />
                 </div>
             </MuiThemeProvider>
+        );
+    }
+}
+
+class MsgWindow extends React.Component {
+    state = {
+        openMsgTopBar: false,
+    };
+    selectedMsg = null;
+
+    handleWindowClickEvent = (event) => {
+        if (event.button !== 2) {
+            this.handleCloseMsgTopBar();
+        }
+    }
+
+    handleOpenMsgTopBar = () => {
+        this.setState({
+            openMsgTopBar: true,
+        });
+        window.addEventListener("click", this.handleWindowClickEvent);
+    };
+
+    handleCloseMsgTopBar = () => {
+        this.setState({
+            openMsgTopBar: false,
+        });
+        window.removeEventListener("click", this.handleWindowClickEvent);
+    };
+
+    setSelectedMsg = (msg) => {
+        this.selectedMsg = msg;
+    };
+
+    render() {
+        const { classes, global, onClickGroupList } = this.props;
+        return (
+            <React.Fragment>
+                <TopBar
+                    classes={classes}
+                    global={global}
+                    onClickGroupList={onClickGroupList}
+                />
+                <MsgThread
+                    classes={classes}
+                    global={global}
+                    setSelectedMsg={this.setSelectedMsg}
+                    openMsgTopBar={this.handleOpenMsgTopBar}
+                />
+                <BottomBar
+                    classes={classes}
+                    global={global}
+                    onClick={this.handleCloseMsgTopBar}
+                />
+                <MsgTopBar
+                    classes={this.props.classes}
+                    open={this.state.openMsgTopBar}
+                    onClose={this.handleCloseMsgTopBar}
+                    msg={this.selectedMsg}
+                />
+            </React.Fragment>
         );
     }
 }
@@ -296,8 +365,12 @@ class MsgThread extends React.Component {
         this.messagesEnd.current.scrollIntoView({ behavior: 'smooth' })
     }
 
+    setSelectedMsg = (msg) => {
+        this.props.setSelectedMsg(msg);
+    };
+
     render() {
-        const { classes, global } = this.props;
+        const { classes, global, openMsgTopBar } = this.props;
         const classPaper = classes.paper + ' ' + classes.topPadding;
         let messages = [];
         if (global.groupId !== null && this.state[global.groupId] !== undefined) {
@@ -309,7 +382,15 @@ class MsgThread extends React.Component {
                     <List className={classes.msgThreadList}>
                         {messages.map((msg) => (
                             <React.Fragment key={msg.id}>
-                                {msg.isSticky ? <Sticky sticky={msg} classes={classes} /> : <Msg msg={msg} {...this.props} />}
+                                {msg.isSticky ? <Sticky sticky={msg} classes={classes} /> :
+                                    <Msg
+                                        classes={classes}
+                                        global={global}
+                                        msg={msg}
+                                        openMsgTopBar={openMsgTopBar}
+                                        setSelectedMsg={this.setSelectedMsg}
+                                    />
+                                }
                             </React.Fragment>
                         ))}
                         <div ref={this.messagesEnd} />
@@ -321,6 +402,12 @@ class MsgThread extends React.Component {
 }
 
 class Msg extends React.Component {
+    handleOnContextMenu = (event) => {
+        event.preventDefault();
+        this.props.setSelectedMsg(this.props.msg)
+        this.props.openMsgTopBar();
+    }
+
     render() {
         const { classes, msg } = this.props;
         let isSender = false;
@@ -333,18 +420,24 @@ class Msg extends React.Component {
             <React.Fragment>
                 <ListItem className={isSender ? classes.listSender : classes.list}>
                     <Card className={isSender ? classes.cardSender : classes.card}>
-                        {isSender ? null : <React.Fragment>
-                            <CardHeader
-                                className={classes.cardHeader}
-                                title={displayName}
-                                titleTypographyProps={{ variant: "caption", color: "textSecondary" }}
-                            />
-                        </React.Fragment>}
-                        <CardContent className={isSender ? classes.cardContentSender : classes.cardContent}>
-                            <Typography>
-                                {msg.msg}
-                            </Typography>
-                        </CardContent>
+                        <CardActionArea
+                            disableRipple
+                            focusVisibleClassName={classes.msgFocusVisible}
+                            onContextMenu={this.handleOnContextMenu}
+                        >
+                            {isSender ? null : <React.Fragment>
+                                <CardHeader
+                                    className={classes.cardHeader}
+                                    title={displayName}
+                                    titleTypographyProps={{ variant: "caption", color: "textSecondary" }}
+                                />
+                            </React.Fragment>}
+                            <CardContent className={isSender ? classes.cardContentSender : classes.cardContent}>
+                                <Typography>
+                                    {msg.msg}
+                                </Typography>
+                            </CardContent>
+                        </CardActionArea>
                     </Card>
                 </ListItem>
                 <Typography className={isSender ? classes.timeSender : classes.time}
@@ -1134,6 +1227,49 @@ class ProfileDialog extends React.Component {
                     open={this.state.open}
                     onClose={this.handleNotificationClose}
                 />
+            </React.Fragment>
+        );
+    }
+}
+
+class MsgTopBar extends React.Component {
+    clipboardTextArea = React.createRef();
+
+    handleClose = () => {
+        this.props.onClose();
+    };
+
+    handleCopy = () => {
+        this.clipboardTextArea.current.select();
+        document.execCommand('copy');
+    };
+
+    transition(props) {
+        return <Slide direction="down" {...props} />;
+    }
+
+    render() {
+        const { classes, open } = this.props;
+        return (
+            <React.Fragment>
+                <Slide direction="down" in={open} mountOnEnter unmountOnExit>
+                    <AppBar position="fixed">
+                        <Toolbar>
+                            <Typography variant="h6" color="inherit" className={classes.msgTopBarFlex}>
+                                Selected...
+                            </Typography>
+                            <IconButton color="inherit" aria-label="Account" onClick={this.handleCopy}>
+                                <Icon>file_copy</Icon>
+                            </IconButton>
+                            <textarea
+                                readOnly
+                                ref={this.clipboardTextArea}
+                                value={this.props.msg ? this.props.msg.msg : ''}
+                                style={{ maxWidth: '16px', right: '-32px', position: 'fixed' }}
+                            />
+                        </Toolbar>
+                    </AppBar>
+                </Slide>
             </React.Fragment>
         );
     }
