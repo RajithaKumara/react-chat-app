@@ -988,11 +988,11 @@ class NewGroupDialog extends React.Component {
 class AddNewMemberDialog extends React.Component {
     state = {
         profiles: [],
-        checked: [],
         open: false,
         errorMsg: '',
         subscribed: false,
     };
+    initialCheckedSuffix = '_initial';
 
     componentDidUpdate() {
         if (this.props.global.userId != null && !this.state.subscribed) {
@@ -1014,6 +1014,63 @@ class AddNewMemberDialog extends React.Component {
                 handleOnAdded(data);
             });
         }
+
+        if (this.props.global.groupId !== null && this.state[this.props.global.groupId] === undefined) {
+            this.setState({
+                [this.props.global.groupId]: [],
+                [this.props.global.groupId + this.initialCheckedSuffix]: [],
+            });
+            this.observeMemberChanges();
+        }
+    }
+
+    observeMemberChanges = () => {
+        let groupId = this.props.global.groupId;
+        let handleOnAdded = (data) => {
+            if (this.state[groupId].indexOf(data.key) === -1) {
+                this.setState(state => ({
+                    [groupId]: [...state[groupId], data.key],
+                }));
+            }
+
+            if (this.state[groupId + this.initialCheckedSuffix].indexOf(data.key) === -1) {
+                this.setState(state => ({
+                    [groupId + this.initialCheckedSuffix]: [...state[groupId + this.initialCheckedSuffix], data.key],
+                }));
+            }
+        }
+
+        let handleOnRemoved = (data) => {
+            let checkedUidIndex = this.state[groupId].indexOf(data.key);
+            let checkedUidIndexInitial = this.state[groupId + this.initialCheckedSuffix].indexOf(data.key);
+
+            if (checkedUidIndex !== -1) {
+                let checked = [...this.state[groupId]];
+                checked.splice(checkedUidIndex, 1);
+
+                this.setState({
+                    [groupId]: checked,
+                });
+            }
+
+            if (checkedUidIndexInitial !== -1) {
+                let checkedInitial = [...this.state[groupId + this.initialCheckedSuffix]];
+                checkedInitial.splice(checkedUidIndexInitial, 1);
+
+                this.setState({
+                    [groupId + this.initialCheckedSuffix]: checkedInitial,
+                });
+            }
+        }
+
+        let groupUsersRef = firebase.database().ref('/groups/' + groupId + '/users');
+        groupUsersRef.on('child_added', function (data) {
+            handleOnAdded(data);
+        });
+
+        groupUsersRef.on('child_removed', function (data) {
+            handleOnRemoved(data);
+        });
     }
 
     handleClose = () => {
@@ -1021,16 +1078,17 @@ class AddNewMemberDialog extends React.Component {
     }
 
     handleToggle = id => () => {
-        const { checked } = this.state;
-        const currentIndex = checked.indexOf(id);
-        const newChecked = [...checked];
+        let groupId = this.props.global.groupId;
+        let checked = this.state[groupId];
+        let currentIndex = checked.indexOf(id);
+        let newChecked = [...checked];
         if (currentIndex === -1) {
             newChecked.push(id);
         } else {
             newChecked.splice(currentIndex, 1);
         }
         this.setState({
-            checked: newChecked,
+            [groupId]: newChecked,
         });
     }
 
@@ -1045,14 +1103,29 @@ class AddNewMemberDialog extends React.Component {
         let groupName = this.props.global.groupName;
         let groupIcon = this.props.global.groupIcon;
         let updates = {};
-        this.state.checked.forEach(uid => {
-            updates['/groups/' + groupId + '/users/' + uid] = true;
-            updates['/users/' + uid + '/groups/' + groupId] = { name: groupName, icon: groupIcon };
+
+        this.state[groupId].forEach(uid => {
+            let groupUsersPath = '/groups/' + groupId + '/users/' + uid;
+            let userGroupsPath = '/users/' + uid + '/groups/' + groupId;
+
+            updates[groupUsersPath] = true;
+            updates[userGroupsPath] = { name: groupName, icon: groupIcon };
         });
+
+        this.state[groupId + this.initialCheckedSuffix].forEach(uid => {
+            let groupUsersPath = '/groups/' + groupId + '/users/' + uid;
+            let userGroupsPath = '/users/' + uid + '/groups/' + groupId;
+
+            if (updates[groupUsersPath] === undefined) {
+                updates[groupUsersPath] = null;
+                updates[userGroupsPath] = null;
+            } else {
+                delete updates[groupUsersPath];
+                delete updates[userGroupsPath];
+            }
+        });
+
         firebase.database().ref().update(updates).then(() => {
-            this.setState({
-                checked: [],
-            });
             this.handleClose();
         }).catch((error) => {
             this.setState({
@@ -1062,8 +1135,20 @@ class AddNewMemberDialog extends React.Component {
         });
     }
 
+    handleCancel = () => {
+        this.handleClose();
+        let groupId = this.props.global.groupId;
+        this.setState(state => ({
+            [groupId]: [...state[groupId + this.initialCheckedSuffix]],
+        }));
+    }
+
     render() {
         const { global } = this.props;
+        let checked = [];
+        if (global.groupId !== null && this.state[global.groupId] !== undefined) {
+            checked = this.state[global.groupId];
+        }
         return (
             <React.Fragment>
                 <Dialog
@@ -1071,7 +1156,7 @@ class AddNewMemberDialog extends React.Component {
                     open={this.props.open}
                     onClose={this.handleClose}
                 >
-                    <DialogTitle>Add new members</DialogTitle>
+                    <DialogTitle>Add/Remove new members</DialogTitle>
                     <DialogContent>
                         <List>
                             {this.state.profiles.map(({ id, displayName, icon, status }) => (
@@ -1082,7 +1167,7 @@ class AddNewMemberDialog extends React.Component {
                                         </ListItemAvatar>
                                         <ListItemText primary={displayName} secondary={status} />
                                         <Checkbox
-                                            checked={this.state.checked.indexOf(id) !== -1}
+                                            checked={checked.indexOf(id) !== -1}
                                             tabIndex={-1}
                                             disableRipple
                                         />
@@ -1092,11 +1177,11 @@ class AddNewMemberDialog extends React.Component {
                         </List>
                     </DialogContent>
                     <DialogActions>
-                        <Button onClick={this.handleClose} color="primary">
+                        <Button onClick={this.handleCancel} color="primary">
                             Cancel
                         </Button>
                         <Button onClick={this.addNewMembers} color="primary">
-                            Add
+                            Add/Remove
                         </Button>
                     </DialogActions>
                 </Dialog>
