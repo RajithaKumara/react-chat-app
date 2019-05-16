@@ -1156,7 +1156,7 @@ class AddNewMemberDialog extends React.Component {
                     open={this.props.open}
                     onClose={this.handleClose}
                 >
-                    <DialogTitle>Add/Remove new members</DialogTitle>
+                    <DialogTitle>Add/Remove members</DialogTitle>
                     <DialogContent>
                         <List>
                             {this.state.profiles.map(({ id, displayName, icon, status }) => (
@@ -1240,11 +1240,11 @@ class ProfileDialog extends React.Component {
         this.setState({
             open: false,
         });
-    }
+    };
 
     handleChange = name => event => {
         this.setState({ [name]: event.target.value });
-    };;
+    };
 
     updateProfile = () => {
         let uid = this.props.global.userId;
@@ -1260,7 +1260,7 @@ class ProfileDialog extends React.Component {
                 errorMsg: "Error occured while updating profile",
             });
         });
-    }
+    };
 
     render() {
         return (
